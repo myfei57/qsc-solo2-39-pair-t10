@@ -61,17 +61,34 @@ class ControlApp:
 
         if error.code not in REFUSAL_CODES:
             return
-        unit = request.params.get("unit") or request.body.get("unit") or ""
-        if not unit:
-            return
+        unit = self._refusal_unit(request, error)
+        subject = str(error.details.get("subject") or unit)
         self.runtime.ledger.blocked(
-            str(unit),
-            f"api.{request.method.lower()}.{request.path.strip('/')}",
-            "console",
+            unit,
+            self._action_name(request),
+            self._refusal_actor(request),
             self.runtime.clock.now(),
             error,
-            subject=str(unit),
+            subject=subject,
         )
+
+    @staticmethod
+    def _action_name(request: Request) -> str:
+        return f"api.{request.method.lower()}.{request.path.strip('/')}"
+
+    @staticmethod
+    def _refusal_actor(request: Request) -> str:
+        """Name the operator without letting a bad field swallow the refusal."""
+
+        actor = request.body.get("actor")
+        if isinstance(actor, str) and actor.strip():
+            return actor.strip()
+        return "console"
+
+    @staticmethod
+    def _refusal_unit(request: Request, error: CrushError) -> str:
+        unit = request.params.get("unit") or request.body.get("unit") or error.details.get("unit") or ""
+        return str(unit)
 
     def _line(self, unit: str):
         return self.runtime.line(unit)
@@ -95,6 +112,7 @@ class ControlApp:
         router = self.router
         router.get("/healthz", self._health, "liveness and record watermark")
         router.get("/api/routes", self._routes, "endpoint inventory")
+        router.get("/api/errors", self._errors, "error code catalogue")
         router.get("/api/state", self._state, "every line state")
         router.get("/api/status", self._status, "site status")
         router.get("/api/report", self._report, "operator report")
@@ -134,6 +152,10 @@ class ControlApp:
 
     def _routes(self, request: Request) -> Response:
         return ok({"routes": self.inventory(), "count": len(self.router.routes())})
+
+    def _errors(self, request: Request) -> Response:
+        categories = catalog()
+        return ok({"errors": categories, "count": len(categories)})
 
     def _state(self, request: Request) -> Response:
         moment = self.runtime.clock.now()

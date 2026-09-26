@@ -5,9 +5,10 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from ..audit.ledger import OUTCOME_BLOCKED, OUTCOME_OK, AuditLedger
+from ..audit.ledger import OUTCOME_OK, AuditLedger
 from ..config import LineSpec
-from ..safety.interlock import Check, guard, summarise
+from ..errors import InterlockBlocked
+from ..safety.interlock import Check, summarise
 from ..safety.latch import Latch
 from ..store.generations import ConfirmationRegister, GenerationRegistry
 from ..verdict.threshold import Limit, judge
@@ -100,16 +101,16 @@ class FeedGate:
                 checks=[check.name for check in checks],
             )
             return
-        self._ledger.record(
+        error = InterlockBlocked("feed", [check.detail for check in failing])
+        self._ledger.blocked(
             self.unit,
             "gate.feed",
-            OUTCOME_BLOCKED,
             actor,
             moment,
+            error,
             subject=self.subject,
-            unmet=[check.detail for check in failing],
         )
-        guard("feed", checks)
+        raise error
 
     def require_confirmation(self, moment: datetime) -> dict[str, Any]:
         """Demand a live confirmation slip for this generation."""

@@ -154,6 +154,8 @@ class AuditLedger:
         action: str = "",
         outcome: str = "",
         subject: str = "",
+        actor: str = "",
+        error: str = "",
         limit: int | None = None,
     ) -> list[AuditEntry]:
         selected = query or AuditQuery(
@@ -161,6 +163,8 @@ class AuditLedger:
             action=action,
             outcome=outcome,
             subject=subject,
+            actor=actor,
+            error=error,
             limit=limit,
         )
         return selected.apply(self._all())
@@ -222,11 +226,18 @@ class AuditLedger:
     @staticmethod
     def _reason(error: BaseException) -> dict[str, Any]:
         details = getattr(error, "details", {})
-        return {
+        # The ledger entry already carries unit/action/subject, so those detail
+        # keys are kept only inside the nested ``refused`` payload.
+        extra = {key: value for key, value in details.items() if key not in ("unit", "action", "subject")}
+        reason = {
             "error": getattr(error, "code", type(error).__name__),
             "error_message": getattr(error, "message", str(error)),
-            "refused": details,
         }
+        # The structured fields stay at the top level (e.g. ``unmet``) and are
+        # repeated under ``refused`` for callers that want the whole payload.
+        reason.update(extra)
+        reason["refused"] = details
+        return reason
 
     @staticmethod
     def _entry(record: Any) -> AuditEntry:

@@ -136,24 +136,50 @@ class ConfigError(CrushError):
     status = 422
 
 
-STATUS_BY_CODE = {
-    cls.code: cls.status
-    for cls in (
-        InvalidRequest,
-        RecordNotFound,
-        Conflict,
-        NameConflict,
-        StateConflict,
-        OrderingViolation,
-        InterlockBlocked,
-        LatchActive,
-        StaleRecord,
-        DurabilityError,
-        LimitExceeded,
-        StoreError,
-        ConfigError,
-    )
+ERROR_CLASSES: tuple[type[CrushError], ...] = (
+    InvalidRequest,
+    RecordNotFound,
+    Conflict,
+    NameConflict,
+    StateConflict,
+    OrderingViolation,
+    InterlockBlocked,
+    LatchActive,
+    StaleRecord,
+    DurabilityError,
+    LimitExceeded,
+    StoreError,
+    ConfigError,
+)
+
+CATEGORY_SUMMARIES: dict[str, str] = {
+    "invalid-request": "a field is missing, malformed or outside its accepted shape",
+    "not-found": "the requested record, document or object does not exist",
+    "conflict": "a revision or compare-and-set guard rejected the write",
+    "duplicate": "a uniqueness constraint rejected the write",
+    "invalid-state": "the transition is not allowed from the current state",
+    "ordering-violation": "a process step was requested out of its mandated order",
+    "interlock": "one or more cross component preconditions are not satisfied",
+    "latched": "a protective latch is set and blocks the action",
+    "stale": "a confirmation, baseline or snapshot is missing, superseded or expired",
+    "not-durable": "a value that must survive a restart was not committed in time",
+    "limit-exceeded": "a measured or commanded value crossed a configured limit",
+    "store": "a document or journal operation failed at the storage layer",
+    "config": "the supplied configuration violates an operational envelope",
 }
+
+CATEGORIES: tuple[dict[str, Any], ...] = tuple(
+    {"code": cls.code, "status": cls.status, "summary": CATEGORY_SUMMARIES[cls.code]}
+    for cls in ERROR_CLASSES
+)
+
+STATUS_BY_CODE = {category["code"]: category["status"] for category in CATEGORIES}
+
+
+def catalog() -> list[dict[str, Any]]:
+    """Every error category the console may return, status code included."""
+
+    return [dict(category) for category in CATEGORIES]
 
 
 def status_for(error: BaseException) -> int:

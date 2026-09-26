@@ -149,6 +149,8 @@ def build_parser() -> argparse.ArgumentParser:
     audit.add_argument("--action", default="")
     audit.add_argument("--outcome", default="")
     audit.add_argument("--subject", default="")
+    audit.add_argument("--actor", default="")
+    audit.add_argument("--error", default="")
     audit.add_argument("--limit", type=int, default=20)
 
     sub("batches", help="print the batch registry")
@@ -454,6 +456,8 @@ def _audit(runtime: Runtime, args: argparse.Namespace) -> int:
         action=args.action,
         outcome=args.outcome,
         subject=args.subject,
+        actor=args.actor,
+        error=args.error,
         limit=args.limit,
     )
     entries = runtime.ledger.entries(query)

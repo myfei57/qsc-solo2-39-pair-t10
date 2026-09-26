@@ -6,11 +6,11 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from ..audit.ledger import OUTCOME_BLOCKED, OUTCOME_OK, AuditLedger
+from ..audit.ledger import OUTCOME_OK, AuditLedger
 from ..clock import stamp
 from ..config import LineSpec
-from ..errors import InvalidRequest, StateConflict
-from ..safety.interlock import Check, guard
+from ..errors import InterlockBlocked, InvalidRequest, StateConflict
+from ..safety.interlock import Check
 from ..store.documents import DocumentStore
 from ..units import belt_load_kg_per_m, round_to
 from ..verdict.log import VerdictLog
@@ -104,16 +104,16 @@ class BeltConveyor:
         checks = self.gates()
         failing = [check for check in checks if not check.ok]
         if failing:
-            self._ledger.record(
+            error = InterlockBlocked("belt start", [check.detail for check in failing])
+            self._ledger.blocked(
                 self.unit,
                 "belt.start",
-                OUTCOME_BLOCKED,
                 actor,
                 moment,
+                error,
                 subject=f"{self.unit}.belt",
-                unmet=[check.detail for check in failing],
             )
-            guard("belt start", checks)
+            raise error
         updated = BeltState(
             unit=self.unit,
             running=True,
