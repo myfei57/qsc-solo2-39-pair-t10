@@ -16,7 +16,7 @@ from .config import diff_configs, envelope_report, load_config
 from .cone.calibrate import CurrentPoint
 from .console import ControlApp, serve
 from .defaults import default_config
-from .errors import CrushError
+from .errors import CrushError, catalog
 from .line.plan import START_STEPS, STOP_STEPS
 from .report import lines as report_lines
 from .report import site_report, unit_report
@@ -149,8 +149,11 @@ def build_parser() -> argparse.ArgumentParser:
     audit.add_argument("--action", default="")
     audit.add_argument("--outcome", default="")
     audit.add_argument("--subject", default="")
+    audit.add_argument("--actor", default="", help="only entries this actor made")
+    audit.add_argument("--error", default="", help="only entries refused with this error code")
     audit.add_argument("--limit", type=int, default=20)
 
+    sub("errors", help="print the error code catalogue")
     sub("batches", help="print the batch registry")
     verdicts = sub("verdicts", help="print recorded judgements")
     verdicts.add_argument("--limit", type=int, default=20)
@@ -454,6 +457,8 @@ def _audit(runtime: Runtime, args: argparse.Namespace) -> int:
         action=args.action,
         outcome=args.outcome,
         subject=args.subject,
+        actor=args.actor,
+        error=args.error,
         limit=args.limit,
     )
     entries = runtime.ledger.entries(query)
@@ -465,6 +470,12 @@ def _audit(runtime: Runtime, args: argparse.Namespace) -> int:
             "entries": [entry.as_dict() for entry in entries],
         }
     )
+    return 0
+
+
+def _errors(runtime: Runtime, args: argparse.Namespace) -> int:
+    entries = catalog()
+    _emit({"errors": entries, "count": len(entries)})
     return 0
 
 
@@ -636,6 +647,7 @@ COMMANDS: dict[str, Callable[[Runtime, argparse.Namespace], int]] = {
     "calibrate": _calibrate,
     "batch": _batch,
     "audit": _audit,
+    "errors": _errors,
     "batches": _batches,
     "verdicts": _verdicts,
     "generations": _generations,

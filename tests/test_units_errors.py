@@ -13,6 +13,7 @@ from crushplant.errors import (
     LatchActive,
     LimitExceeded,
     StaleRecord,
+    catalog,
     payload_for,
     status_for,
 )
@@ -143,3 +144,20 @@ def test_an_error_carries_the_details_its_caller_needs() -> None:
 
     assert latch.target == "CP-1.feed"
     assert latch.details["requested"] == "release"
+
+
+def test_the_catalogue_lists_every_code_with_its_status() -> None:
+    entries = catalog()
+
+    assert len(entries) == 13
+    assert entries[0]["code"] == "invalid-request"
+    for entry in entries:
+        assert entry["status"] >= 400
+        assert entry["summary"]
+        assert isinstance(entry["refusal"], bool)
+
+    by_code = {entry["code"]: entry for entry in entries}
+    assert by_code["interlock"]["status"] == 409
+    assert by_code["latched"]["status"] == 423
+    assert by_code["interlock"]["refusal"] is True
+    assert by_code["not-found"]["refusal"] is False

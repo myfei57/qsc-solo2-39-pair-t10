@@ -35,6 +35,8 @@ class AuditQuery:
     action: str = ""
     outcome: str = ""
     subject: str = ""
+    actor: str = ""
+    error: str = ""
     since: datetime | None = None
     until: datetime | None = None
     limit: int | None = None
@@ -47,6 +49,10 @@ class AuditQuery:
         if self.outcome and entry.outcome != self.outcome:
             return False
         if self.subject and entry.subject != self.subject:
+            return False
+        if self.actor and entry.actor != self.actor:
+            return False
+        if self.error and entry.error_code != self.error:
             return False
         moment = entry.moment()
         if self.since is not None and moment < self.since:
@@ -71,6 +77,8 @@ class AuditQuery:
             "action": self.action,
             "outcome": self.outcome,
             "subject": self.subject,
+            "actor": self.actor,
+            "error": self.error,
             "since": None if self.since is None else self.since.isoformat(),
             "until": None if self.until is None else self.until.isoformat(),
             "limit": self.limit,
@@ -92,6 +100,8 @@ class AuditQuery:
             action=str(raw.get("action", "") or ""),
             outcome=str(raw.get("outcome", "") or ""),
             subject=str(raw.get("subject", "") or ""),
+            actor=str(raw.get("actor", "") or ""),
+            error=str(raw.get("error", "") or ""),
             since=optional_moment(raw.get("since")),
             until=optional_moment(raw.get("until")),
             limit=limit,

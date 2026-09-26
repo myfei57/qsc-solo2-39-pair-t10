@@ -119,8 +119,19 @@ def records(runtime: Any) -> str:
     )
     body += "</section><section><h2>ledger tail</h2>"
     body += _table(
-        ["sequence", "at", "unit", "action", "outcome", "actor"],
-        [[entry.sequence, entry.at, entry.unit, entry.action, entry.outcome, entry.actor] for entry in entries],
+        ["sequence", "at", "unit", "action", "outcome", "actor", "error"],
+        [
+            [
+                entry.sequence,
+                entry.at,
+                entry.unit,
+                entry.action,
+                entry.outcome,
+                entry.actor,
+                entry.error_code or "-",
+            ]
+            for entry in entries
+        ],
     )
     body += "</section>"
     return _document(f"{runtime.config.site} records", body)

@@ -136,24 +136,63 @@ class ConfigError(CrushError):
     status = 422
 
 
-STATUS_BY_CODE = {
-    cls.code: cls.status
-    for cls in (
-        InvalidRequest,
-        RecordNotFound,
-        Conflict,
-        NameConflict,
-        StateConflict,
-        OrderingViolation,
-        InterlockBlocked,
-        LatchActive,
-        StaleRecord,
-        DurabilityError,
-        LimitExceeded,
-        StoreError,
-        ConfigError,
-    )
-}
+# One ordered list for every face (HTTP, CLI, tests) so the code a failure
+# returns and the catalogue operators read never drift apart.
+ERROR_CLASSES: tuple[type[CrushError], ...] = (
+    InvalidRequest,
+    RecordNotFound,
+    Conflict,
+    NameConflict,
+    StateConflict,
+    OrderingViolation,
+    InterlockBlocked,
+    LatchActive,
+    StaleRecord,
+    DurabilityError,
+    LimitExceeded,
+    StoreError,
+    ConfigError,
+)
+
+# Codes that mean the control core refused an operator action.  The console
+# writes such refusals into the operation ledger.
+REFUSAL_CODES = frozenset(
+    {
+        OrderingViolation.code,
+        InterlockBlocked.code,
+        LatchActive.code,
+        StaleRecord.code,
+        DurabilityError.code,
+        LimitExceeded.code,
+    }
+)
+
+STATUS_BY_CODE = {cls.code: cls.status for cls in ERROR_CLASSES}
+
+
+def _summary(cls: type[CrushError]) -> str:
+    """The one-line meaning of an error class, taken from its docstring."""
+
+    return " ".join((cls.__doc__ or cls.code).split()).rstrip(".")
+
+
+def catalog() -> list[dict[str, Any]]:
+    """Every error code the service can return, with its status and meaning.
+
+    This is the single list the console serves and the command line prints,
+    so an operator checking the interface inventory can look up what each
+    failure code stands for and which HTTP status travels with it.
+    """
+
+    return [
+        {
+            "code": cls.code,
+            "status": cls.status,
+            "summary": _summary(cls),
+            "refusal": cls.code in REFUSAL_CODES,
+        }
+        for cls in ERROR_CLASSES
+    ]
 
 
 def status_for(error: BaseException) -> int:

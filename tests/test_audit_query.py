@@ -26,9 +26,15 @@ def filled_ledger(tmp_path: Path) -> AuditLedger:
     )
     ledger = AuditLedger(stream)
     ledger.record("CP-1", "feeder.start", OUTCOME_OK, "operator", START, subject="feed")
-    ledger.record("CP-1", "belt.start", OUTCOME_BLOCKED, "operator", START + timedelta(seconds=30), subject="belt")
-    ledger.record("CP-2", "feeder.start", OUTCOME_OK, "operator", START + timedelta(seconds=90), subject="feed")
-    ledger.record("CP-2", "chute.blocked", OUTCOME_BLOCKED, "control", START + timedelta(seconds=120), subject="chute")
+    ledger.record(
+        "CP-1", "belt.start", OUTCOME_BLOCKED, "operator", START + timedelta(seconds=30),
+        subject="belt", error="interlock",
+    )
+    ledger.record("CP-2", "feeder.start", OUTCOME_OK, "li-wei", START + timedelta(seconds=90), subject="feed")
+    ledger.record(
+        "CP-2", "chute.blocked", OUTCOME_BLOCKED, "control", START + timedelta(seconds=120),
+        subject="chute", error="latched",
+    )
     return ledger
 
 
@@ -56,6 +62,16 @@ def test_a_query_narrows_by_subject(tmp_path: Path) -> None:
 
     assert [entry.sequence for entry in ledger.entries(AuditQuery(subject="feed"))] == [1, 3]
     assert ledger.counts() == {"feeder.start": 2, "belt.start": 1, "chute.blocked": 1}
+
+
+def test_a_query_narrows_by_actor_and_error_code(tmp_path: Path) -> None:
+    ledger = filled_ledger(tmp_path)
+
+    assert [entry.sequence for entry in ledger.entries(AuditQuery(actor="li-wei"))] == [3]
+    assert [entry.sequence for entry in ledger.entries(AuditQuery(error="interlock"))] == [2]
+    assert ledger.entries(AuditQuery(actor="control", error="latched"))[0].sequence == 4
+    assert ledger.entries(AuditQuery(error="latched"))[0].error_code == "latched"
+    assert ledger.entries(AuditQuery(error="interlock", actor="control")) == []
 
 
 def test_a_query_respects_a_time_window(tmp_path: Path) -> None:
@@ -93,12 +109,16 @@ def test_from_mapping_reads_console_parameters() -> None:
             "action": "feeder.start",
             "outcome": OUTCOME_OK,
             "subject": "feed",
+            "actor": "operator",
+            "error": "interlock",
             "since": "2026-04-06T05:30:00Z",
             "limit": "5",
         }
     )
 
     assert query.unit == "CP-1"
+    assert query.actor == "operator"
+    assert query.error == "interlock"
     assert query.since == START
     assert query.limit == 5
     assert query.describe()["action"] == "feeder.start"

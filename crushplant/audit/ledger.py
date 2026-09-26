@@ -35,6 +35,12 @@ class AuditEntry:
     def moment(self) -> datetime:
         return parse_stamp(self.at)
 
+    @property
+    def error_code(self) -> str:
+        """The error classification a blocked step was refused under."""
+
+        return str(self.detail.get("error", ""))
+
     def as_dict(self) -> dict[str, Any]:
         return {
             "sequence": self.sequence,
@@ -44,6 +50,7 @@ class AuditEntry:
             "outcome": self.outcome,
             "actor": self.actor,
             "subject": self.subject,
+            "error": self.error_code,
             "detail": self.detail,
         }
 
@@ -154,6 +161,8 @@ class AuditLedger:
         action: str = "",
         outcome: str = "",
         subject: str = "",
+        actor: str = "",
+        error: str = "",
         limit: int | None = None,
     ) -> list[AuditEntry]:
         selected = query or AuditQuery(
@@ -161,6 +170,8 @@ class AuditLedger:
             action=action,
             outcome=outcome,
             subject=subject,
+            actor=actor,
+            error=error,
             limit=limit,
         )
         return selected.apply(self._all())

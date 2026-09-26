@@ -8,7 +8,7 @@ from ..audit.query import AuditQuery
 from ..belt.scale import ScalePoint
 from ..config import diff_configs, envelope_report, load_config
 from ..cone.calibrate import CurrentPoint
-from ..errors import CrushError, InvalidRequest, catalog
+from ..errors import REFUSAL_CODES, CrushError, InvalidRequest, catalog
 from ..report import lines, site_report, unit_report
 from ..runtime import Runtime
 from ..scenario import plan_scenarios, run_scenario, scenario_names, scenario_run_dir
@@ -18,17 +18,6 @@ from .response import Response, created, failure, html, ok
 from .router import Request, Router
 
 Handler = Callable[[Request], Response]
-
-REFUSAL_CODES = frozenset(
-    {
-        "ordering-violation",
-        "interlock",
-        "latched",
-        "not-durable",
-        "stale",
-        "limit-exceeded",
-    }
-)
 
 
 class ControlApp:
@@ -57,7 +46,12 @@ class ControlApp:
         return self.router.inventory()
 
     def _note_refusal(self, request: Request, error: CrushError) -> None:
-        """Write a refused step down, so a blocked attempt is still auditable."""
+        """Write a refused step down, so a blocked attempt is still auditable.
+
+        The actor comes from the request body (the same field every accepted
+        write uses), so a refusal names the operator who tried it instead of
+        an anonymous ``console`` entry.
+        """
 
         if error.code not in REFUSAL_CODES:
             return
@@ -67,7 +61,7 @@ class ControlApp:
         self.runtime.ledger.blocked(
             str(unit),
             f"api.{request.method.lower()}.{request.path.strip('/')}",
-            "console",
+            self._actor(request),
             self.runtime.clock.now(),
             error,
             subject=str(unit),
@@ -95,6 +89,7 @@ class ControlApp:
         router = self.router
         router.get("/healthz", self._health, "liveness and record watermark")
         router.get("/api/routes", self._routes, "endpoint inventory")
+        router.get("/api/errors", self._errors, "error codes and their HTTP status")
         router.get("/api/state", self._state, "every line state")
         router.get("/api/status", self._status, "site status")
         router.get("/api/report", self._report, "operator report")
@@ -134,6 +129,16 @@ class ControlApp:
 
     def _routes(self, request: Request) -> Response:
         return ok({"routes": self.inventory(), "count": len(self.router.routes())})
+
+    def _errors(self, request: Request) -> Response:
+        entries = catalog()
+        return ok(
+            {
+                "errors": entries,
+                "count": len(entries),
+                "refusal_codes": sorted(REFUSAL_CODES),
+            }
+        )
 
     def _state(self, request: Request) -> Response:
         moment = self.runtime.clock.now()

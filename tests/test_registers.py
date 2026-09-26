@@ -90,6 +90,37 @@ def test_a_refused_request_is_written_down_with_the_operator(tmp_path: Path) -> 
     blocked = app.runtime.ledger.entries(outcome="blocked")
 
     assert blocked and blocked[-1].actor == "li-wei"
+    assert blocked[-1].error_code == "ordering-violation"
+    assert blocked[-1].as_dict()["error"] == "ordering-violation"
+
+
+def test_a_refusal_without_an_actor_is_attributed_to_the_console(tmp_path: Path) -> None:
+    app = ControlApp(manual_runtime(tmp_path))
+    app.handle(Request(method="POST", path="/api/belt/start", body={"unit": DEFAULT_UNIT}))
+
+    blocked = app.runtime.ledger.entries(outcome="blocked")
+
+    assert blocked and blocked[-1].actor == "console"
+
+
+def test_refusals_can_be_read_back_by_actor_and_error_code(tmp_path: Path) -> None:
+    app = ControlApp(manual_runtime(tmp_path))
+    app.handle(
+        Request(method="POST", path="/api/belt/start", body={"unit": DEFAULT_UNIT, "actor": "li-wei"})
+    )
+
+    by_actor = app.handle(
+        Request(method="GET", path="/api/audit", query={"actor": "li-wei", "error": "ordering-violation"})
+    )
+    by_other = app.handle(
+        Request(method="GET", path="/api/audit", query={"actor": "li-wei", "error": "latched"})
+    )
+
+    assert by_actor.payload["count"] == 1
+    entry = by_actor.payload["entries"][0]
+    assert entry["actor"] == "li-wei"
+    assert entry["error"] == "ordering-violation"
+    assert by_other.payload["count"] == 0
 
 
 def test_a_deck_cannot_be_shared_by_two_lines() -> None:

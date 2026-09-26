@@ -9,7 +9,7 @@ from typing import Any
 from ..audit.ledger import OUTCOME_BLOCKED, OUTCOME_OK, AuditLedger
 from ..clock import stamp
 from ..config import LineSpec
-from ..errors import InvalidRequest, StateConflict
+from ..errors import InterlockBlocked, InvalidRequest, StateConflict
 from ..safety.interlock import Check, guard
 from ..store.documents import DocumentStore
 from ..units import belt_load_kg_per_m, round_to
@@ -111,6 +111,7 @@ class BeltConveyor:
                 actor,
                 moment,
                 subject=f"{self.unit}.belt",
+                error=InterlockBlocked.code,
                 unmet=[check.detail for check in failing],
             )
             guard("belt start", checks)

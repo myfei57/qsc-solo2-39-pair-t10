@@ -7,6 +7,7 @@ from typing import Any
 
 from ..audit.ledger import OUTCOME_BLOCKED, OUTCOME_OK, AuditLedger
 from ..config import LineSpec
+from ..errors import InterlockBlocked
 from ..safety.interlock import Check, guard, summarise
 from ..safety.latch import Latch
 from ..store.generations import ConfirmationRegister, GenerationRegistry
@@ -107,6 +108,7 @@ class FeedGate:
             actor,
             moment,
             subject=self.subject,
+            error=InterlockBlocked.code,
             unmet=[check.detail for check in failing],
         )
         guard("feed", checks)
